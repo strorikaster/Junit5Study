@@ -11,14 +11,17 @@ public class TestLauncher {
     public static void main(String[] args) {
         var launcher = LauncherFactory.create();
         //launcher.registerLauncherDiscoveryListeners();
-        //launcher.registerTestExecutionListeners();
+
 
         var summaryGeneratingListener = new SummaryGeneratingListener();
+        //launcher.registerTestExecutionListeners();
+        //launcher.registerTestExecutionListeners(summaryGeneratingListener);
 
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder
                 .request()
-                .selectors(DiscoverySelectors.selectClass(UserServiceTest.class))
-                .selectors(DiscoverySelectors.selectPackage("src.test.java"))
+                //.selectors(DiscoverySelectors.selectClass(UserServiceTest.class))
+                .selectors(DiscoverySelectors.selectPackage("src.test"))
+                //.listeners()
                 .build();
         launcher.execute(request, summaryGeneratingListener);
 
