@@ -1,13 +1,16 @@
 import dto.User;
+import extension.*;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.collection.IsMapContaining;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.*;
-import paramresolver.UserServiceParamResolver;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import service.UserService;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -19,11 +22,16 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("fast")
 @Tag("user")
 @ExtendWith({
-        UserServiceParamResolver.class
+        UserServiceParamResolver.class,
+        PostProcessingExtension.class,
+        ConditionalExtension.class,
+        ThrowableExtension.class
+//        GlobalExtension.class Закоментировали, т.к. наследуемся от TestBase,
+//        а в TestBase уже указано ExtendsWith с GlobalExtension.class
 })
 //@TestInstance(TestInstance.Lifecycle.PER_METHOD)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class UserServiceTest {
+class UserServiceTest extends TestBase {
 
     private static final User IVAN = User.of(1, "Ivan", "123");
     private static final User PETR = User.of(2, "Petr", "111");
@@ -45,7 +53,11 @@ class UserServiceTest {
     @Test
     @Order(1)
     @DisplayName("Users will be empty if no user added")
-    void usersEmptyIfNoUserAdded(UserService userService) {
+    void usersEmptyIfNoUserAdded(UserService userService) throws IOException {
+        if (true) {
+            //throw  new IOException(); так тест не пройдет т.к. у нас в ThrowableExtension указано IOException
+            throw new RuntimeException();//так тест пройдет т.к. у нас в ThrowableExtension не указано RuntimeException
+        }
         System.out.println("Test 1: " + this);
         var users = userService.getAll();
 
@@ -86,7 +98,6 @@ class UserServiceTest {
     }
 
 
-
     @AfterEach
     void deleteDataFromDatabase() {
         System.out.println("After each: " + this);
@@ -98,7 +109,8 @@ class UserServiceTest {
     }
 
 
-    @Nested
+    //@Timeout(value = 200, unit = TimeUnit.MILLISECONDS) так тоже можно задать timeout можно использовать не только с методом, но и с классом
+    @Nested //Nested class for testing login functionality
     @DisplayName("test user login functionality")
     @Tag("login")
     class LoginTest {
@@ -140,6 +152,7 @@ class UserServiceTest {
 
        // @Tag("login")
         @Test
+        @Disabled("flacky, need to see")//Disable flacky test
         void loginFailIfPasswordIsNotCorrect() {
             userService.add(IVAN);
             var maybeUser = userService.login(IVAN.getUsername(), "dummy");
@@ -148,12 +161,24 @@ class UserServiceTest {
         }
 
         //@Tag("login")
-        @Test
-        void loginFailIfUserDoesNotExist() {
+        //@Test
+        @RepeatedTest(value = 5, name = RepeatedTest.LONG_DISPLAY_NAME)//for flacky test
+        void loginFailIfUserDoesNotExist(RepetitionInfo repetitionInfo) {
             userService.add(IVAN);
             var maybeUser = userService.login("dummy", IVAN.getPassword());
 
             assertTrue(maybeUser.isEmpty());
+        }
+
+        @Test
+        //@Timeout(value = 200, unit = TimeUnit.MILLISECONDS) так тоже можно задать timeout
+        void checkLoginFunctionalityPerformance() {
+            System.out.println(Thread.currentThread().getName());
+          var result=  assertTimeoutPreemptively(Duration.ofMillis(200L), () -> {//Заменили assertTimeout на assertTimeoutPreemptively, assertTimeoutPreemptively выполняется в отдельном потоке
+              System.out.println(Thread.currentThread().getName());
+              Thread.sleep(100);//Заменил на 100 мс , т.к. на 300 мс тест падает
+              return  userService.login("dummy", IVAN.getPassword());
+          });
         }
 
         @ParameterizedTest
