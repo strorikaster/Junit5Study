@@ -7,7 +7,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import service.UserService;
+import dao.UserDao;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -25,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
         UserServiceParamResolver.class,
         PostProcessingExtension.class,
         ConditionalExtension.class,
-        ThrowableExtension.class
+//        ThrowableExtension.class Закоментировали чтобы падали тесты
 //        GlobalExtension.class Закоментировали, т.к. наследуемся от TestBase,
 //        а в TestBase уже указано ExtendsWith с GlobalExtension.class
 })
@@ -35,6 +38,8 @@ class UserServiceTest extends TestBase {
 
     private static final User IVAN = User.of(1, "Ivan", "123");
     private static final User PETR = User.of(2, "Petr", "111");
+
+    private UserDao userDao;
     private UserService userService;
 
 
@@ -46,8 +51,37 @@ class UserServiceTest extends TestBase {
     @BeforeEach
     void prepare(UserService userService) {
         System.out.println("Before each: " + this);
-        this.userService = userService;
-        //userService = new UserService();
+        //this.userService = userService; используем DI, закомментировали - будем использовать Mockito
+        //this.userDao = Mockito.mock(UserDao.class); используем mock
+        this.userDao = Mockito.spy(new UserDao());
+        this.userService = new UserService(userDao);
+        //userService = new UserService(); закоментировали т.к. используем DI
+    }
+
+    @Test
+    void shouldDeleteExistedUser() {
+        userService.add(IVAN);
+        Mockito.doReturn(true).when(userDao).delete(IVAN.getId());
+        //Mockito.doReturn(true).when(userDao).delete(Mockito.any()); dummy объект вместо реального Id
+//        Mockito.when(userDao.delete(IVAN.getId()))
+//                .thenReturn(true)
+//                .thenReturn(false);
+        var deleteResult = userService.delete(IVAN.getId());
+//        var deleteResult = userService.delete(1);
+//        var deleteResult = userService.delete(2);
+        System.out.println(userService.delete(IVAN.getId()));
+        System.out.println(userService.delete(IVAN.getId()));
+
+        // Mockito.verify(userDao).delete(IVAN.getId());// проверка, что метод delete вызвался
+        //Mockito.verify(userDao, Mockito.atLeast(2)).delete(IVAN.getId());// проверка сколько раз вызвался метод или
+        Mockito.verify(userDao, Mockito.times(2)).delete(IVAN.getId());
+        //Mockito.verifyNoInteractions(varArgs of mocks); проверка, что не было вызвано ни одного метода
+        var argumentCaptor  = ArgumentCaptor.forClass(Integer.class);
+        Mockito.verify(userDao, Mockito.times(3)).delete(argumentCaptor.capture());
+
+     assertThat(argumentCaptor.getValue()).isEqualTo(25);
+
+     assertThat(deleteResult).isTrue();
     }
 
     @Test
@@ -120,7 +154,6 @@ class UserServiceTest extends TestBase {
         void loginSuccesIfUserPresent() {
             userService.add(IVAN);
             Optional<User> maybeUser = userService.login(IVAN.getUsername(), IVAN.getPassword());
-
             assertThat(maybeUser).isPresent();
             maybeUser.ifPresent(user -> assertThat(user).isEqualTo(IVAN));
 //        assertTrue(maybeUser.isPresent());without AssertJ
